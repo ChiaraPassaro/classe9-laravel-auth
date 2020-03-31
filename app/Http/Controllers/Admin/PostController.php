@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Post;
+use App\Tag;
+use App\Image;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
@@ -41,8 +43,16 @@ class PostController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function create()
-    {
-        return view('admin.posts.create');
+    {   
+        $tags = Tag::all();
+        $images = Image::all();
+
+        $data = [
+            'tags' => $tags,
+            'images' => $images
+        ];
+
+        return view('admin.posts.create', $data);
     }
 
     /**
@@ -53,6 +63,7 @@ class PostController extends Controller
      */
     public function store(Request $request)
     {
+
         $idUser = Auth::user()->id;
 
         $request->validate($this->validateRules);
@@ -65,9 +76,21 @@ class PostController extends Controller
         $newPost->slug = Str::finish(Str::slug($newPost->title), rand(1, 1000000));
         
         $saved = $newPost->save();
+
+        
         if(!$saved) {
             return redirect()->back();
-        }  
+        }
+
+        $tags = $data['tags'];
+        if(!empty($tags)) {
+            $newPost->tags()->attach($tags);
+        }
+
+        $images = $data['images'];
+        if(!empty($images)) {
+            $newPost->images()->attach($images);
+        }
 
         return redirect()->route('admin.posts.show', $newPost->slug);
 
@@ -95,7 +118,16 @@ class PostController extends Controller
     public function edit($slug)
     {
         $post = Post::where('slug', $slug)->first();
-        return view('admin.posts.edit', compact('post'));
+        $tags = Tag::all();
+        $images = Image::all();
+
+        $data = [
+            'tags' => $tags,
+            'post' => $post,
+            'images' => $images
+        ];
+        
+        return view('admin.posts.edit', $data);
     }
 
     /**
@@ -130,6 +162,26 @@ class PostController extends Controller
             return redirect()->back();
         }
 
+        $tags = $data['tags'];
+        $images = $data['images'];
+
+        // foreach ($tags as $key => $tag) {
+        //     $tagSearched = Tag::find($tag);
+        //     if(empty($tagSearched)){
+        //         unset($tags[$key]);
+        //     }
+        // }
+
+        if (!empty($tags)) {
+            // $post->tags()->detach();
+            // $post->tags()->attach($tags);
+            $post->tags()->sync($tags);
+        }
+
+        if (!empty($images)) {
+            $post->images()->sync($images);
+        }
+
         return redirect()->route('admin.posts.show', $post->slug);
 
     }
@@ -146,6 +198,9 @@ class PostController extends Controller
             abort(404);
         }
 
+
+        $post->images()->detach();
+        $post->tags()->detach();
         $post->delete();
 
         return redirect()->route('admin.posts.index');
